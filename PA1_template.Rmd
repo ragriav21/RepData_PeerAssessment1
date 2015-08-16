@@ -5,21 +5,98 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
 
+First, set and load the working environment and necessary libraries.
 
+```{r, echo=TRUE, results=FALSE}
+library(knitr)
+library(xtable)
+library(plyr)
+library(dplyr)
+setwd("C:/Users/rgrillo/datasciencecoursera/RepData_PeerAssessment1")
+```
+
+Load and preprocess the data now.
+
+```{r, echo=TRUE}
+activity <- read.csv(unzip(zipfile = "activity.zip", files = "activity.csv"))
+```
+
+Viewing the data separately, using the View() command (not written), reveals that the data needs no pre-processing.
 
 ## What is mean total number of steps taken per day?
 
+There are 61 total days recorded.  We use ddply to calculate the total number of steps taken per day, and their mean and median.
 
+```{r, echo=TRUE}
+days <- length(unique(activity$date))
+stepsPerDay <- ddply(activity, ~date, summarise, recorded_number_of_steps_taken = sum(steps, na.rm = TRUE))
+stepsPerDay
+hist(stepsPerDay[ , 2])
+meanSteps <- mean(stepsPerDay[ , 2], na.rm = TRUE)
+medianSteps <- median(stepsPerDay[ , 2], na.rm = TRUE)
+```
+
+The mean number of steps taken per day is `r meanSteps` and the median number of steps taken per day is `r medianSteps`.
 
 ## What is the average daily activity pattern?
 
+The average number of steps taken at each five-minute interval is plotted below.
 
+```{r, echo=TRUE}
+avgDailyActivity <- ddply(activity, ~interval, summarise, average_number_of_steps_taken = mean(steps, na.rm = TRUE))
+avgDailyActivity
+plot(x = avgDailyActivity[,1], y = avgDailyActivity[ , 2], type = "l")
+maxIntervalIdx <- which(avgDailyActivity[ , 2] == max(avgDailyActivity[ , 2]))
+maxInterval <- avgDailyActivity[maxIntervalIdx, 1]
+time <- maxInterval/60
+time2 <- paste(floor(time), round((time-floor(time))*60), sep=":")
+```
+
+The five-minute interval that contains the maximum number of steps across all days, on average, is `r maxInterval`, which is `r time2`.
 
 ## Imputing missing values
 
+```{r, echo=TRUE}
+numNA <- length(which(is.na(activity$steps)))
+```
 
+There are `r numNA` cases with missing values in the dataset.  We will use the mean for the 5-minute interval to fill in the NAs.
+
+```{r, echo=TRUE}
+NewActivity <- activity
+for(i in 1:nrow(NewActivity)) {
+    if(is.na(NewActivity[i, 1])) {
+        tmpIdx <- which(avgDailyActivity[ , 1] == NewActivity[i, 3])
+        NewActivity[i, 1] <- avgDailyActivity[tmpIdx, 2]
+    }
+}
+View(NewActivity)
+```
+
+Now we make a histogram of the data
+
+```{r, echo=TRUE}
+newStepsPerDay <- ddply(NewActivity, ~date, summarise, recorded_number_of_steps_taken = sum(steps))
+newStepsPerDay
+hist(newStepsPerDay[ , 2])
+newMeanSteps <- mean(newStepsPerDay[ , 2], na.rm = TRUE)
+newMedianSteps <- median(newStepsPerDay[ , 2], na.rm = TRUE)
+diffMeanSteps <- abs(newMeanSteps - meanSteps)
+diffMedianSteps <- abs(newMedianSteps - medianSteps)
+```
+
+The mean total number of steps taken per day is `r newMeanSteps` and the median total number of steps taken per day is `r newMedianSteps`, which is a difference of `r diffMeanSteps` and `r diffMedianSteps` for the respective values, computed without imputing new values for the NAs (having removed them previously). 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r, echo=TRUE}
+NewActivity$date <- as.POSIXct(NewActivity$date)
+NewActivity$weekday <- weekdays(NewActivity$date)
+if(NewActivity$weekday %in% c("Saturday", "Sunday")) {
+    NewActivity$weekday_type <- "Weekend"
+} else {
+    NewActivity$weekday_type <- "Weekday"
+}
+```
